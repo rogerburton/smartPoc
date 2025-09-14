@@ -4,12 +4,14 @@ from datetime import timedelta
 # Blueprints
 from routes.sign import sign_bp
 from routes.auth import auth_bp
+from routes.reset import reset_bp
 
 app = Flask(__name__, template_folder="templates")
 
 # IMPORTANT : pas de url_prefix ici (Apache monte déjà l'app sur /smart)
 app.register_blueprint(sign_bp, url_prefix="/smart")
 app.register_blueprint(auth_bp, url_prefix="/smart")
+app.register_blueprint(reset_bp, url_prefix="/smart")
 
 # Clé secrète obligatoire pour utiliser les sessions
 app.secret_key = "jenemesentisplusguidéparleshaleurs"
