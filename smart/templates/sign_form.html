@@ -1,0 +1,32 @@
+<h2>Inscription</h2>
+<form method="post" action="/smart/sign" hx-target="#main-content">
+  <label>Nom :</label>
+  <input type="text" name="family_name" required><br>
+
+  <label>Prénom :</label>
+  <input type="text" name="first_name" required><br>
+
+  <label>Date de naissance :</label>
+  <input type="date" name="birth_date" required><br>
+
+  <label>GSM :</label>
+  <input type="tel" name="telephone" required><br>
+
+  <label>Email :</label>
+  <input type="email" name="email" required><br>
+
+  <label>Login :</label>
+  <input type="text" name="login" minlength="5"
+         hx-get="/smart/check-login"
+         hx-trigger="keyup changed delay:500ms"
+         hx-target="#login-feedback"
+         required>
+  <div id="login-feedback"></div><br>
+  
+  <label>Password :</label>
+  <input type="password" name="dwp" minlength="8" required><br>
+
+  <input type="hidden" name="uri" value="http://51.75.195.147/smart">
+
+  <button type="submit">Valider</button>
+</form>

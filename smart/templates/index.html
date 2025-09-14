@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ initial_title or 'Smart App' }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mini.css@3.0.1/dist/mini-default.min.css">
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://unpkg.com/alpinejs" defer></script>
+  <style>
+    body { display: flex; min-height: 100vh; margin: 0; }
+    nav { width: 20%; background: #f4f4f4; padding: 1rem; }
+    main { flex: 1; display: flex; flex-direction: column; }
+    main header, main footer { padding: 0.5rem; background: #eee; }
+    main section { flex: 1; padding: 1rem; }
+    aside { background: #fafafa; border-left: 1px solid #ddd; padding: 0.5rem; }
+    @media (max-width: 768px) {
+      nav { width: 100%; }
+      main { width: 100%; }
+    }
+  </style>
+</head>
+<body x-data="{ title: '{{ initial_title or 'Accueil' }}' }">
+
+  <!-- Navigation -->
+  <nav>
+    <h3>Menu</h3>
+    <ul>
+      <li><a href="/smart/reset" hx-get="/smart/reset" hx-target="#main-content" hx-push-url="true">Reset</a></li>
+      <li><a href="/smart/sign" hx-get="/smart/sign" hx-target="#main-content" hx-push-url="true">Sign</a></li>
+      <li><a href="/smart/config" hx-get="/smart/config" hx-target="#main-content" hx-push-url="true">Config</a></li>
+      <li><a href="/smart/user" hx-get="/smart/user" hx-target="#main-content" hx-push-url="true">User</a></li>
+      <li><a href="/smart/advisor" hx-get="/smart/advisor" hx-target="#main-content" hx-push-url="true">Advisor</a></li>
+    </ul>
+  
+    <hr>
+  
+    <!-- Formulaire de login -->
+    <form method="post" action="/smart/login" hx-post="/smart/login" hx-target="#main-content">
+      <label>Login :</label><br>
+      <input type="text" name="login" required><br>
+  
+      <label>Password :</label><br>
+      <input type="password" name="password" required><br>
+  
+      <button type="submit">Connexion</button>
+    </form>
+  
+    {% if session.get("user") %}
+      <p>Connecté : {{ session['user'] }}</p>
+      <form method="post" action="/smart/logout" hx-post="/smart/logout" hx-target="#main-content">
+        <button type="submit">Déconnexion</button>
+      </form>
+    {% endif %}
+  </nav>
+  
+  <!-- Contenu -->
+  <main>
+    <header>
+      <h2 x-text="title">{{ initial_title or 'Accueil' }}</h2>
+    </header>
+
+    <section id="main-content">
+      {{ initial_content|safe }}
+    </section>
+
+    <footer>
+      <small>&copy; 2025 Smart App</small>
+    </footer>
+  </main>
+
+  <aside>
+    <h4>Aside</h4>
+    <p>Zone complémentaire.</p>
+  </aside>
+
+</body>
+</html>
