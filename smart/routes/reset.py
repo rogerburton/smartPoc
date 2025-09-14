@@ -12,7 +12,7 @@ def reset():
     try:
         if request.method == "POST":
             # Effacement complet de la DB directory
-            basex_conn.query("directory", "delete node collection('directory')//Party")
+            basex_conn.delete_all("directory")
             return "<h2>Base réinitialisée</h2><p>La base directory est maintenant vide.</p>"
 
         # Si GET → afficher le formulaire avec confirmation
