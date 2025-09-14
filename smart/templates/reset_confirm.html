@@ -1,0 +1,7 @@
+<h2>Réinitialiser la base</h2>
+<p>⚠️ Cette action supprimera <strong>toutes</strong> les données de la base <code>directory</code>.</p>
+<form method="post" action="/smart/reset" hx-post="/smart/reset" hx-target="#main-content">
+  <button type="submit" onclick="return confirm('Confirmer la suppression complète ?')">
+    Réinitialiser la base
+  </button>
+</form>
