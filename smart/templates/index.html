@@ -17,6 +17,19 @@
       nav { width: 100%; }
       main { width: 100%; }
     }
+
+   input {
+    padding: 0.2rem 0.4rem; /* réduit la hauteur */
+    font-size: 0.85rem;      /* texte un peu plus compact */
+    line-height: 1.2;        /* réduit encore la hauteur */
+  }
+
+  nav button {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+   
   </style>
 </head>
 <body x-data="{ title: '{{ initial_title or 'Accueil' }}' }">
@@ -35,15 +48,16 @@
     <hr>
   
     <!-- Formulaire de login -->
-    <form method="post" action="/smart/login" hx-post="/smart/login" hx-target="#main-content">
-      <label>Login :</label><br>
-      <input type="text" name="login" required><br>
+<form method="post" action="/smart/login"
+      hx-post="/smart/login" hx-target="#main-content">
+  <label for="login">Login:</label>
+  <input type="text" id="login" name="login" required>
   
-      <label>Password :</label><br>
-      <input type="password" name="password" required><br>
+  <label for="password">Password:</label>
+  <input type="password" id="password" name="password" required>
   
-      <button type="submit">Connexion</button>
-    </form>
+  <button type="submit">Connexion</button>
+</form>
   
     {% if session.get("user") %}
       <p>Connecté : {{ session['user'] }}</p>
@@ -54,24 +68,26 @@
   </nav>
   
   <!-- Contenu -->
-  <main>
-    <header>
-      <h2 x-text="title">{{ initial_title or 'Accueil' }}</h2>
-    </header>
+<main style="display: flex; flex-direction: column; height: 100vh;">
+  <header>
+    <h2 x-text="title">{{ initial_title or 'Accueil' }}</h2>
+  </header>
 
-    <section id="main-content">
+  <div class="row" style="flex: 1; display: flex;">
+    <section id="main-content" class="col-sm-9" style="height: 100%; overflow-y: auto;">
       {{ initial_content|safe }}
     </section>
+    <aside class="col-sm-3" style="height: 100%; overflow-y: auto; background: #f8f8f8;">
+      <h4>Aside</h4>
+      <p>Zone complémentaire.</p>
+    </aside>
+  </div>
 
-    <footer>
-      <small>&copy; 2025 Smart App</small>
-    </footer>
-  </main>
+  <footer>
+    <small>&copy; 2025 Smart App</small>
+  </footer>
+</main>
 
-  <aside>
-    <h4>Aside</h4>
-    <p>Zone complémentaire.</p>
-  </aside>
 
 </body>
 </html>

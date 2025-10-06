@@ -1,107 +1,117 @@
 from flask import Blueprint, render_template, request
 from lxml import etree
-import random, string
+import random
+import string
 import sys
-sys.path.append("/home/ubuntu/dev/basex_client")  # chemin vers ton module sécurisé
-import basex_conn
 import hashlib
+
+# Import client BaseX
+sys.path.append("/home/ubuntu/dev/basex_client")
+import basex_conn
 
 sign_bp = Blueprint("sign", __name__, template_folder="../templates")
 
-def generate_id():
-    """
-    Génère un ID unique de 6 caractères (lettres/chiffres)
-    et vérifie qu'il n'existe pas déjà dans la DB BaseX 'directory'.
-    """
+# --- Helpers ---------------------------------------------------------------
+CAC = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+CBC = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+
+NS_DECL = (
+    f"declare namespace cac=\"{CAC}\";\n"
+    f"declare namespace cbc=\"{CBC}\";\n"
+)
+
+
+def _login_exists(login: str) -> bool:
+    """Vérifie l'unicité du login dans BaseX en tenant compte des namespaces UBL."""
+    xq = (
+        NS_DECL
+        + f'count(//Party[cac:AdditionalWebSite/cac:WebSiteAccess/cbc:Login="{login}"])'
+    )
+    return basex_conn.query("directory", xq) != "0"
+
+
+def _id_exists(pid: str) -> bool:
+    """Vérifie l'unicité de l'ID (PartyIdentification/ID)."""
+    xq = NS_DECL + f'count(//Party[cac:PartyIdentification/cbc:ID="{pid}"])'
+    return basex_conn.query("directory", xq) != "0"
+
+
+def _new_party_id() -> str:
     while True:
-        candidate = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
-        
-        # Vérifie si l'ID existe déjà comme Party/PartyIdentification/ID
-        exists = basex_conn.query(
-            "directory",
-            f'count(//Party[PartyIdentification/ID="{candidate}"])'
-        )
-        
-        if exists == "0":
+        candidate = "".join(random.choices(string.ascii_letters + string.digits, k=6))
+        if not _id_exists(candidate):
             return candidate
 
+# --- Routes ----------------------------------------------------------------
 @sign_bp.route("/sign", methods=["GET", "POST"])
 def sign():
-    if request.method == "POST":
-        family_name = request.form["family_name"]
-        first_name = request.form["first_name"]
-        birth_date = request.form["birth_date"]
-        tel = request.form["telephone"]
-        email = request.form["email"]
-        login = request.form["login"]
-        dwp = request.form["dwp"]
-        uri = request.form["uri"]
+    # GET → fragment si HTMX, sinon layout avec fragment
+    if request.method == "GET":
+        frag = render_template("sign_form.html")
+        if request.headers.get("HX-Request") == "true":
+            return frag
+        return render_template("index.html", initial_title="Inscription", initial_content=frag)
 
-        # Vérifier unicité du login
-        exists = basex_conn.query(
-            "directory",
-            f'count(//Party[AdditionalWebSite/WebSiteAccess/Login="{login}"])'
-        )
-        if exists != "0":
-            return "<p style='color:red'>Login déjà utilisé</p>"
+    # POST
+    family_name = request.form["family_name"].strip()
+    first_name = request.form["first_name"].strip()
+    birth_date = request.form["birth_date"].strip()
+    tel = request.form["telephone"].strip()
+    email = request.form["email"].strip()
+    login = request.form["login"].strip()
+    dwp = request.form["dwp"]
+    uri = request.form["uri"].strip()
 
-        party_id = generate_id()
+    # Unicité du login (namespace-aware)
+    if _login_exists(login):
+        msg = "<p style='color:red'>Login déjà utilisé</p>"
+        if request.headers.get("HX-Request") == "true":
+            return msg
+        frag = render_template("sign_form.html") + msg
+        return render_template("index.html", initial_title="Inscription", initial_content=frag)
 
-        # Construction XML UBL Party
-        ns_cbc = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
-        ns_cac = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
-        nsmap = {"cbc": ns_cbc, "cac": ns_cac}
-        party = etree.Element("Party", nsmap=nsmap)
+    party_id = _new_party_id()
 
-        pid = etree.SubElement(party, f"{{{ns_cac}}}PartyIdentification")
-        etree.SubElement(pid, f"{{{ns_cbc}}}ID").text = party_id
+    # Construction XML UBL Party (root sans namespace; sous-éléments en CAC/CBC)
+    nsmap = {"cac": CAC, "cbc": CBC}
+    party = etree.Element("Party", nsmap=nsmap)
 
-        person = etree.SubElement(party, f"{{{ns_cac}}}Person")
-        etree.SubElement(person, f"{{{ns_cbc}}}FamilyName").text = family_name
-        etree.SubElement(person, f"{{{ns_cbc}}}FirstName").text = first_name
-        etree.SubElement(person, f"{{{ns_cbc}}}BirthDate").text = birth_date
+    pid = etree.SubElement(party, f"{{{CAC}}}PartyIdentification")
+    etree.SubElement(pid, f"{{{CBC}}}ID").text = party_id
 
-        contact = etree.SubElement(party, f"{{{ns_cac}}}Contact")
-        etree.SubElement(contact, f"{{{ns_cbc}}}Telephone").text = tel
-        etree.SubElement(contact, f"{{{ns_cbc}}}ElectronicMail").text = email
+    person = etree.SubElement(party, f"{{{CAC}}}Person")
+    etree.SubElement(person, f"{{{CBC}}}FamilyName").text = family_name
+    etree.SubElement(person, f"{{{CBC}}}FirstName").text = first_name
+    etree.SubElement(person, f"{{{CBC}}}BirthDate").text = birth_date
 
-        aws = etree.SubElement(party, f"{{{ns_cac}}}AdditionalWebSite")
-        access = etree.SubElement(aws, f"{{{ns_cac}}}WebSiteAccess")
-        etree.SubElement(access, f"{{{ns_cbc}}}URI").text = uri
-        etree.SubElement(access, f"{{{ns_cbc}}}Login").text = login
-        hashed_dwp = hashlib.sha256(dwp.encode("utf-8")).hexdigest()
-        etree.SubElement(access, f"{{{ns_cbc}}}Password").text = hashed_dwp
+    contact = etree.SubElement(party, f"{{{CAC}}}Contact")
+    etree.SubElement(contact, f"{{{CBC}}}Telephone").text = tel
+    etree.SubElement(contact, f"{{{CBC}}}ElectronicMail").text = email
 
-        # Sauvegarde dans BaseX
-        xml_str = etree.tostring(party, pretty_print=True, encoding="utf-8", xml_declaration=True)
-        basex_conn.save("directory", party_id, xml_str.decode("utf-8"))
-        return f"<h2>Inscription réussie</h2><p>Party {party_id} créé avec login {login}</p>"
+    aws = etree.SubElement(party, f"{{{CAC}}}AdditionalWebSite")
+    access = etree.SubElement(aws, f"{{{CAC}}}WebSiteAccess")
+    etree.SubElement(access, f"{{{CBC}}}URI").text = uri
+    etree.SubElement(access, f"{{{CBC}}}Login").text = login
+    hashed_dwp = hashlib.sha256(dwp.encode("utf-8")).hexdigest()
+    etree.SubElement(access, f"{{{CBC}}}Password").text = hashed_dwp
 
-    # si c'est un appel htmx → juste le fragment
+    # Sauvegarde
+    xml_str = etree.tostring(party, pretty_print=True, encoding="utf-8", xml_declaration=True)
+    basex_conn.save("directory", party_id, xml_str.decode("utf-8"))
+
+    success = f"<h2>Inscription réussie</h2><p>Party {party_id} créé avec login {login}</p>"
     if request.headers.get("HX-Request") == "true":
-        return render_template("sign_form.html")
+        return success
+    return render_template("index.html", initial_title="Inscription réussie", initial_content=success)
 
-    # sinon (URL directe dans le navigateur) → layout complet
-    return render_template(
-        "index.html",
-        initial_title="Inscription",
-        initial_content=render_template("sign_form.html")
-    )
 
 @sign_bp.route("/check-login")
 def check_login():
     login = request.args.get("login", "").strip()
-
     if len(login) < 5:
         return "<span style='color:red'>Minimum 5 caractères</span>"
 
-    # Vérifie en DB si login existe
-    result = basex_conn.query(
-        "directory",
-        f'count(//Party[AdditionalWebSite/WebSiteAccess/Login="{login}"])'
-    )
-
-    if result != "0":
+    # Vérifie en DB (namespace-aware)
+    if _login_exists(login):
         return "<span style='color:red'>Login indisponible</span>"
-    else:
-        return "<span style='color:green'>Login disponible</span>"
+    return "<span style='color:green'>Login disponible</span>"

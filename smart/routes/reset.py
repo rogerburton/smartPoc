@@ -8,16 +8,10 @@ import basex_conn
 reset_bp = Blueprint("reset", __name__, template_folder="../templates")
 
 @reset_bp.route("/reset", methods=["GET", "POST"])
+@reset_bp.route("/reset", methods=["GET", "POST"])
 def reset():
-    try:
-        if request.method == "POST":
-            # Effacement complet de la DB directory
-            basex_conn.delete_all("directory")
-            return "<h2>Base réinitialisée</h2><p>La base directory est maintenant vide.</p>"
+    if request.method == "POST":
+        basex_conn.drop_and_recreate("directory")
+        return "<h2>Base 'directory' supprimée et recréée</h2>"
 
-        # Si GET → afficher le formulaire avec confirmation
-        return render_template("reset_confirm.html")
-
-    except Exception as e:
-        err = traceback.format_exc()
-        return f"<pre style='color:red'>{err}</pre>"
+    return render_template("reset_confirm.html")
