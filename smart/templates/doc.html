@@ -1,0 +1,148 @@
+<!-- /var/www/html/smart/templates/doc.html -->
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Documents</title>
+
+  <!-- mini.css -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/mini.css/3.0.1/mini-default.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <!-- CodeMirror -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <!-- S-expr -> HTML helper -->
+  <script src="{{ url_for('static', filename='js/tohtml.js') }}"></script>
+
+  <style>
+    .post-actions{margin-top:.5rem}
+    .raw{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;background:#f6f8fa;padding:.5rem;border-radius:6px}
+    .rendered{padding:.5rem;border:1px dashed #ddd;border-radius:6px}
+    .muted{color:#666;font-size:.9em}
+    .flex-row{display:flex;gap:.5rem;align-items:center}
+    .CodeMirror{height:120px}
+    footer.post-footer{margin-top:.35rem}
+  </style>
+</head>
+<body>
+<header>
+  <a href="#" class="logo">/doc</a>
+  <a href="#" class="button" id="reloadBtn">Recharger</a>
+  <span class="muted" id="count"></span>
+</header>
+
+<main class="container">
+  <section>
+    <h2>Posts</h2>
+    <ol id="postList"></ol>
+  </section>
+
+  <section>
+    <h3>Ajouter / Insérer</h3>
+    <div class="row">
+      <div class="col-sm-12 col-md-9">
+        <textarea id="editor"></textarea>
+      </div>
+      <div class="col-sm-12 col-md-3">
+        <div class="flex-row">
+          <label for="insertIndex">Index</label>
+          <input type="number" id="insertIndex" min="1" value="1" />
+        </div>
+        <div class="stack">
+          <button id="addBtn">Ajouter en fin</button>
+          <button id="insertBtn" class="secondary">Insérer à l'index</button>
+        </div>
+        <p class="muted">Texte libre <em>ou</em> S-expression (ex : <code>(div :id "x" (span "hello"))</code>).</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const $ = (s, r=document)=>r.querySelector(s);
+  const esc = s => s.replace(/</g,'&lt;');
+
+  function isSexpr(s){ s = (s||"").trim(); return s.startsWith('(') && s.endsWith(')'); }
+
+  function renderRaw(content){ return `<pre class="raw">${esc(content)}</pre>`; }
+
+  function renderFooter(content){
+    if(!isSexpr(content)) return '';
+    try{
+      const html = window.toHTML(content);
+      return `<footer class="post-footer"><details><summary class="muted">Traduction XHTML</summary><div class="rendered">${html}</div></details></footer>`;
+    }catch{ return `<footer class="post-footer muted">(S-expr invalide)</footer>`; }
+  }
+
+  async function loadPosts(){
+    const r = await fetch('/api/posts');
+    const data = await r.json();
+    $('#count').textContent = data.count + ' posts';
+    const ol = $('#postList'); ol.innerHTML = '';
+    data.posts.forEach((p, idx)=>{
+      const i = idx+1;
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div>${renderRaw(p)}</div>
+        ${renderFooter(p)}
+        <div class="post-actions">
+          <button data-act="edit" data-i="${i}" class="secondary">Éditer</button>
+          <button data-act="delete" data-i="${i}" class="tertiary">Supprimer</button>
+          <button data-act="insertAfter" data-i="${i}">Insérer après</button>
+        </div>`;
+      ol.appendChild(li);
+    });
+    $('#insertIndex').value = data.count + 1;
+  }
+
+  async function addAtEnd(text){
+    await fetch('/api/posts', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content:text})});
+    await loadPosts();
+  }
+  async function insertAt(index, text){
+    await fetch('/api/posts/insert', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({index, content:text})});
+    await loadPosts();
+  }
+  async function updateAt(index, text){
+    await fetch(`/api/posts/${index}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content:text})});
+    await loadPosts();
+  }
+  async function deleteAt(index){
+    if(!confirm('Supprimer le post '+index+' ?')) return;
+    await fetch(`/api/posts/${index}`, {method:'DELETE'});
+    await loadPosts();
+  }
+
+  const cm = CodeMirror.fromTextArea(document.getElementById('editor'), { lineNumbers:true, mode:'javascript' });
+
+  document.getElementById('reloadBtn').addEventListener('click', loadPosts);
+  document.getElementById('addBtn').addEventListener('click', ()=> addAtEnd(cm.getValue()));
+  document.getElementById('insertBtn').addEventListener('click', ()=>{
+    const idx = parseInt(document.getElementById('insertIndex').value||'1',10);
+    insertAt(idx, cm.getValue());
+  });
+
+  document.getElementById('postList').addEventListener('click', (ev)=>{
+    const btn = ev.target.closest('button[data-act]');
+    if(!btn) return;
+    const i = parseInt(btn.dataset.i, 10);
+    if(btn.dataset.act==='delete') return deleteAt(i);
+    if(btn.dataset.act==='insertAfter'){
+      const text = prompt('Nouveau contenu à insérer après '+i+':');
+      if(text!==null) insertAt(i+1, text);
+      return;
+    }
+    if(btn.dataset.act==='edit'){
+      const text = prompt('Nouveau contenu pour le post '+i+':');
+      if(text!==null) updateAt(i, text);
+      return;
+    }
+  });
+
+  loadPosts();
+</script>
+</body>
+</html>

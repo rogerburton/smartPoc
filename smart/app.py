@@ -5,13 +5,15 @@ from datetime import timedelta
 from routes.sign import sign_bp
 from routes.auth import auth_bp
 from routes.reset import reset_bp
+from routes.doc import doc_bp   # <-- nouveau
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__, template_folder="templates", static_folder="static")
 
 # IMPORTANT : pas de url_prefix ici (Apache monte déjà l'app sur /smart)
-app.register_blueprint(sign_bp, url_prefix="/smart")
-app.register_blueprint(auth_bp, url_prefix="/smart")
-app.register_blueprint(reset_bp, url_prefix="/smart")
+app.register_blueprint(sign_bp)
+app.register_blueprint(auth_bp)
+app.register_blueprint(reset_bp)
+app.register_blueprint(doc_bp)  # <-- nouveau
 
 # Clé secrète obligatoire pour utiliser les sessions
 app.secret_key = "jenemesentisplusguidéparleshaleurs"
@@ -19,10 +21,9 @@ app.secret_key = "jenemesentisplusguidéparleshaleurs"
 # Timeout d’inactivité : 5 minutes
 app.permanent_session_lifetime = timedelta(minutes=5)
 
-
 # La racine de l'app (côté Flask) devient "/"
+# (exposé publiquement en /smart/ via Apache)
 @app.route("/")
-@app.route("/smart/")
 def index():
     return render_template(
         "index.html",
